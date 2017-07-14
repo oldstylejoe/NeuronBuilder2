@@ -1,0 +1,45 @@
+---
+title: "Test NeuronBuilder2"
+author: "Joe Snider"
+date: "7/13/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Some tests for NeuronBuilder2 (can add more). This just loops over a few values of the removal radius (rr) to create swc files. It plots the swc file directly with a stat_swc thing I made quickly (TODO: stat_swc might be worth making fancier). The red dots are the used puncta, and the black dots are the locations of stabilizers on the neurons. Note that they don't quite overlap, but they almost all do. I'm not sure why, but it is probably usable in the curren form.
+
+```{r}
+
+library(ggplot2)
+source("stat_swc.R")
+
+for (rr in c(0.8,0.9,1.0, 1.1, 1.2)) {
+  
+  system(paste0("./neuronbuilder2 ",as.character(rr), " > test.swc"))
+
+  dat <- read.table("test.swc")
+  names(dat) <- c("num", "type", "x", "y", "z", "w", "parent")
+  
+  dat.puncta <- read.table("puncta.txt")
+  names(dat.puncta) <- c("px", "py", "pz", "used")
+  dat.puncta$used <- factor(dat.puncta$used)
+  levels(dat.puncta$used) <- c("no", "yes")
+  
+  p = ggplot(dat, aes(x=x, y=y)) + 
+    stat_swc(mapping=aes(parent=parent, color=type)) +
+    geom_point() +
+    geom_point(data=dat.puncta[dat.puncta$use=="yes",],
+               mapping=aes(x=px, y=py), color="red") +
+    coord_equal() +
+    ggtitle(paste0("Test for rr = ", as.character(rr)))
+  
+  print(p)
+}
+
+```
+

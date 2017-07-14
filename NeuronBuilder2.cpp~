@@ -1,0 +1,283 @@
+// NeuronBuilder2.cpp : Defines the entry point for the console application.
+//
+
+#include <iostream>
+#include <fstream>
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <math.h>
+
+#include "brain.h"
+#include "arbor.h"
+#include "rand3.h"
+#include "histogram.h"
+#include "ForEachUtils.h"
+
+//a length scale for the brain, scales the boundary, puncta, and number of arbors
+double LENGTH_SCALE = 40.;
+
+//set the bounding box
+double X_LOW = -1*LENGTH_SCALE;
+double Y_LOW = -1*LENGTH_SCALE;
+const double Z_LOW = 0.;
+double X_HIGH = LENGTH_SCALE;
+double Y_HIGH = LENGTH_SCALE;
+const double Z_HIGH = 3.;
+
+double BRANCH_LENGTH = 1.;          //length of new branches
+const double PUNCTA_RANGE = .05;           //range over which to consider a puncta intersecting a branch
+const double PUNCTA_REMOVE_RADIUS = 1.3;   //remove all puncta within this range of all puncta that intersect a branch
+const double PUNCTA_PER_BRANCH = 2.;      //number of puncta per branch
+
+const int PUNCTA = int(4.*LENGTH_SCALE*LENGTH_SCALE/(BRANCH_LENGTH*PUNCTA_RANGE)*PUNCTA_PER_BRANCH+0.5);
+//const int PUNCTA = int(4.*(Z_HIGH-Z_LOW)*LENGTH_SCALE*LENGTH_SCALE/(acos(-1.)*BRANCH_LENGTH*PUNCTA_RANGE*PUNCTA_RANGE)*PUNCTA_PER_BRANCH+0.5);
+
+const int MAIN_MAX_STEPS_WITHOUT_PLACEMENT = 1000000;
+
+const int NUM_ARBORS = 1;//int(LENGTH_SCALE*LENGTH_SCALE/10.+0.5);            //the number of arbors to place
+
+const double STEP_FORWARD_PROB = 1.; //the probablilty the a trial growth step is straight ahead
+
+const int MIN_REPEATS = 0;
+const int STEP_REPEATS = 1;
+const int MAX_REPEATS = 1;
+
+const int REQUIRED_STABILIZERS = 1;
+
+using namespace std;
+
+int main(int argc, char* argv[]) {
+   unsigned uStartTime = (unsigned)time(NULL);
+
+   srand( (unsigned) time(NULL) );
+   CRand3 rand3(rand());
+
+   cout << "Bulk simulation " << flush;
+   ofstream ofUsed("used.txt");
+   ofstream ofLengthVolumeFiles("length_volume_files.txt");
+   int iTotal = 0;
+   int iDied = 0;
+   double dMaxVolume = -1.;
+   //The thing I vary changes alot, so this is hackish.
+   for(double dVary = .5; dVary < 2.0001; dVary += 0.1) {
+      cout << "Run for the varied parameter = " << dVary << "...\n" << flush;
+      char cstrBuffer[1000];
+      vector<double> vecUsed;
+
+      sprintf(cstrBuffer, "length_volume_vary%g.txt", dVary);
+      ofLengthVolumeFiles << cstrBuffer << "\n" << flush;
+      ofstream ofLengthVolume(cstrBuffer);
+
+      sprintf(cstrBuffer, "product_moment_vary%g.txt", dVary);
+      ofstream ofProductMoment(cstrBuffer);
+
+      sprintf(cstrBuffer, "segments_vary%g.txt", dVary);
+      ofstream ofSegments(cstrBuffer);
+
+      sprintf(cstrBuffer, "angles_vary%g.txt", dVary);
+      ofstream ofAngles(cstrBuffer);
+
+      sprintf(cstrBuffer, "lengths_vary%g.txt", dVary);
+      ofstream ofLengths(cstrBuffer);
+
+      for(int iNum = MIN_REPEATS; iNum < MAX_REPEATS; iNum += STEP_REPEATS) {
+         /*LENGTH_SCALE = 20. + 20.*rand3();
+         X_LOW = -1*LENGTH_SCALE;
+         Y_LOW = -1*LENGTH_SCALE;
+         X_HIGH = LENGTH_SCALE;
+         Y_HIGH = LENGTH_SCALE;*/
+         CPoint pntLow;
+         pntLow.push_back(X_LOW);
+         pntLow.push_back(Y_LOW);
+         //pntLow.push_back(Z_LOW);
+         CPoint pntHigh;
+         pntHigh.push_back(X_HIGH);
+         pntHigh.push_back(Y_HIGH);
+         //pntHigh.push_back(Z_HIGH);
+         int iPunctaCount = int(4.*LENGTH_SCALE*LENGTH_SCALE/(BRANCH_LENGTH*PUNCTA_RANGE)*PUNCTA_PER_BRANCH+0.5);
+         //int iPunctaCount = int(4.*(Z_HIGH-Z_LOW)*LENGTH_SCALE*LENGTH_SCALE/(acos(-1.)*BRANCH_LENGTH*PUNCTA_RANGE*PUNCTA_RANGE)*PUNCTA_PER_BRANCH+0.5);
+         cout << "   Placing " << iPunctaCount << "-" << flush;
+         CBrain B1(NUM_ARBORS, iPunctaCount, pntLow, pntHigh, STEP_FORWARD_PROB, rand3);
+         cout << "\\" << flush;
+         int iPlaced = B1.Grow(MAIN_MAX_STEPS_WITHOUT_PLACEMENT, BRANCH_LENGTH, PUNCTA_RANGE, /*PUNCTA_REMOVE_RADIUS*/dVary, rand3);
+         cout << "|" << flush;
+         
+         //cout << "Warning: breaking scaling with zoom transform..." << flush;
+         //B1.Scale(10.*dVary, 10.*dVary, 10.*dVary);
+         //cout << "done\n" << flush;
+
+         ofstream ofSegmentsTest1("segments.txt");
+         B1.DumpSegments(ofSegmentsTest1);
+         ofSegmentsTest1.close();
+
+         cout << "P" << flush;
+         ofstream ofPuncta("puncta.txt");
+         B1.DumpPuncta(ofPuncta);
+         ofPuncta.close();
+         cout << ":" << flush;
+
+         B1.Trim(PUNCTA_RANGE, REQUIRED_STABILIZERS);
+         cout << ":" << flush;
+
+         string simID = "simulated_";
+         char bufferNum[100];
+         sprintf(bufferNum, "%d_vary%g", iNum, dVary);
+         simID.append(bufferNum);
+         B1.Save(simID);
+
+         char cstrSegmentFileName[200];
+         sprintf(cstrSegmentFileName, "simulated_vary%g_run%d_segments.txt", dVary, iNum);
+         ofstream ofSegmentsTest(cstrSegmentFileName);
+         B1.DumpSegments(ofSegmentsTest, 1);
+         ofSegmentsTest.close();
+
+         cout << "IV" << flush;
+         B1.DumpInertialVolume(ofLengthVolume);
+         cout << ":" << flush;
+
+         cout << "S" << flush;
+         B1.DumpSegments(ofSegments, iNum*NUM_ARBORS);
+         cout << ":" << flush;
+
+         //char cstrInertialHistogram[1000];
+         //sprintf(cstrInertialHistogram, "inertial_histogram_bl%g_trial%d.txt", dLength, iNum);
+         //ofstream ofIH(cstrInertialHistogram);
+         //B1.InertialHistogram(ofIH);
+         //ofIH.close();
+
+         cout << "P" << flush;
+         B1.ProductMoment(ofProductMoment, 0, 20, 1, 2);
+         cout << ":" << flush;
+
+         cout << "A" << flush;
+         B1.RawAngles(ofAngles);
+         cout << ":" << flush;
+
+         cout << "L" << flush;
+         B1.RawLengths(ofLengths);
+         cout << ":" << flush;
+
+         map<int, unsigned> mapS_to_N;
+         B1.Stabilizers(mapS_to_N);
+         ofstream ofStabilizers("stabilizers.txt");
+         map<int, unsigned>::const_iterator iterSN = mapS_to_N.begin();
+         map<int, unsigned>::const_iterator iterSN_end = mapS_to_N.end();
+         for(; iterSN != iterSN_end; ++iterSN) {
+            ofStabilizers << iterSN->first << " " << iterSN->second << "\n";
+         }
+         ofStabilizers.close();
+
+         //map<int, pair<double, double> > mapL_to_S;
+         //B1.LevelStabilizers(mapL_to_S);
+         //char cstrLevelStabilizers[1000];
+         //sprintf(cstrLevelStabilizers, "level_stabilizers_br%g_trial%d.txt", dLength, iNum);
+         //ofstream ofLevelStabilizers(cstrLevelStabilizers);
+         //map<int, pair<double, double> >::const_iterator iterLS = mapL_to_S.begin();
+         //map<int, pair<double, double> >::const_iterator iterLS_end = mapL_to_S.end();
+         //for(; iterLS != iterLS_end; ++iterLS) {
+         //   ofLevelStabilizers << iterLS->first << " "
+         //      << iterLS->second.first << " "
+         //      << iterLS->second.second << "\n";
+         //}
+         //ofLevelStabilizers.close();
+
+         cout << "/\n" << flush;
+
+         vecUsed.push_back(double(B1.CountOccupiedPuncta())/double(iPunctaCount));
+         //ofUsed << B1.CountOccupiedPuncta() << " " << iPunctaCount << "\n" << flush;
+      }
+      feu::CAverage AUsed = for_each(vecUsed.begin(), vecUsed.end(), feu::CAverage());
+      ofUsed << dVary << " "
+         << AUsed.GetAverage() << " "
+         << AUsed.GetStandardError() << "\n" << flush;
+
+      ofLengthVolume.close();
+      ofProductMoment.close();
+      ofSegments.close();
+      ofAngles.close();
+      ofLengths.close();
+   }
+   ofUsed.close();
+   /*   CPoint pntLow;
+   pntLow.push_back(X_LOW);
+   pntLow.push_back(Y_LOW);
+   pntLow.push_back(Z_LOW);
+   CPoint pntHigh;
+   pntHigh.push_back(X_HIGH);
+   pntHigh.push_back(Y_HIGH);
+   pntHigh.push_back(Z_HIGH);
+
+   int iPunctaCount = MIN_PUNCTA;
+   cout << "Placing " << iPunctaCount << "-" << flush;
+   CBrain B1(NUM_ARBORS, iPunctaCount, pntLow, pntHigh, 1., rand3);
+   cout << "\\" << flush;
+   int iPlaced = B1.Grow(MAIN_MAX_STEPS_WITHOUT_PLACEMENT, BRANCH_LENGTH, PUNCTA_RANGE, PUNCTA_REMOVE_RADIUS, rand3);
+   cout << "done.\n" << flush;
+
+   cout << "Trimming the arbors..." << flush;
+   B1.Trim(PUNCTA_RANGE);
+   cout << "done.\n" << flush;
+
+   cout << "Saving the arbors..." << flush;
+   B1.Save();
+   cout << "done\n" << flush;
+
+   cout << "Dumping puncta..." << flush;
+   ofstream ofPuncta("puncta.txt");
+   B1.DumpPuncta(ofPuncta);
+   ofPuncta.close();
+   cout << "done.\n" << flush;
+
+   cout << "Dumping segments" << flush;
+   ofstream ofSegments("segments.txt");
+   B1.DumpSegments(ofSegments);
+   ofSegments.close();
+   cout << "done.\n" << flush;
+
+   cout << "Finding length and volumes..." << flush;
+   ofstream ofLV("lv.txt");
+   B1.DumpInertialVolume(ofLV);
+   ofLV.close();
+   cout << "done.\n" << flush;
+
+   cout << "Finding raw angles..." << flush;
+   ofstream ofRawAngles("raw_angles.txt");
+   B1.RawAngles(ofRawAngles);
+   ofRawAngles.close();
+   cout << "done.\n" << flush;
+
+   cout << "Finding raw lengths..." << flush;
+   ofstream ofRawLength("raw_length.txt");
+   B1.RawLengths(ofRawLength);
+   ofRawLength.close();
+   cout << "done\n" << flush;
+
+   cout << "Product moments..." << flush;
+   ofstream ofProductMoment("product_moment.txt");
+   B1.ProductMoment(ofProductMoment, 0, 20, 1);
+   ofProductMoment.close();
+   cout << "done\n" << flush;
+
+   cout << "Finding the stabilizers..." << flush;
+   map<int, unsigned> mapS_to_N;
+   B1.Stabilizers(mapS_to_N);
+   ofstream ofStabilizers("stabilizers.txt");
+   map<int, unsigned>::const_iterator iterSN = mapS_to_N.begin();
+   map<int, unsigned>::const_iterator iterSN_end = mapS_to_N.end();
+   for(; iterSN != iterSN_end; ++iterSN) {
+   ofStabilizers << iterSN->first << " " << iterSN->second << "\n";
+   }
+   ofStabilizers.close();
+   cout << "done\n" << flush;
+
+   ofstream ofUsed("used.txt");
+   ofUsed << B1.CountOccupiedPuncta() << "\n" << flush;
+   ofUsed.close();
+   */
+   //ofLengthVolumeFiles.close();
+   cout << "This took " << time(NULL)-uStartTime << " seconds\n" << flush;
+
+   return 0;
+}
+
