@@ -29,10 +29,10 @@ double LENGTH_SCALE = 20.;
 //set the bounding box
 double X_LOW = -1*LENGTH_SCALE;
 double Y_LOW = -1*LENGTH_SCALE;
-const double Z_LOW = 0.;
+const double Z_LOW = -1*LENGTH_SCALE;//0.;
 double X_HIGH = LENGTH_SCALE;
 double Y_HIGH = LENGTH_SCALE;
-const double Z_HIGH = 3.;
+const double Z_HIGH = LENGTH_SCALE;//3.;
 
 double BRANCH_LENGTH = 1.;          //length of new branches
 const double PUNCTA_RANGE = .05;           //range over which to consider a puncta intersecting a branch
