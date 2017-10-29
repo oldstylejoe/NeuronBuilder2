@@ -37,7 +37,7 @@ const double Z_HIGH = 3.;
 double BRANCH_LENGTH = 1.;          //length of new branches
 const double PUNCTA_RANGE = .05;           //range over which to consider a puncta intersecting a branch
 const double PUNCTA_REMOVE_RADIUS = 1.3;   //remove all puncta within this range of all puncta that intersect a branch
-const double PUNCTA_PER_BRANCH = 2.;      //number of puncta per branch
+const double PUNCTA_PER_BRANCH = 1.0;      //number of puncta per branch
 
 const int PUNCTA = int(4.*LENGTH_SCALE*LENGTH_SCALE/(BRANCH_LENGTH*PUNCTA_RANGE)*PUNCTA_PER_BRANCH+0.5);
 //const int PUNCTA = int(4.*(Z_HIGH-Z_LOW)*LENGTH_SCALE*LENGTH_SCALE/(acos(-1.)*BRANCH_LENGTH*PUNCTA_RANGE*PUNCTA_RANGE)*PUNCTA_PER_BRANCH+0.5);
@@ -63,7 +63,8 @@ int main(int argc, char* argv[]) {
    CRand3 rand3(rand());
 
    if(argc != 2) {
-      cout << "usage: ./neuronbuilder2 <removal radius (double)>\nThe pipe the resulting output to a .swc file\n" << flush;
+      //cout << "usage: ./neuronbuilder2 <removal radius (double)>\nThe pipe the resulting output to a .swc file\n" << flush;
+      cout << "usage: ./neuronbuilder2 <removal radius (double)>\nThen pipe the resulting output list of segments to a .txt file\n" << flush;
       return -1;
    }
 
@@ -73,13 +74,13 @@ int main(int argc, char* argv[]) {
    CPoint pntLow;
    pntLow.push_back(X_LOW);
    pntLow.push_back(Y_LOW);
-   //pntLow.push_back(Z_LOW);
+   pntLow.push_back(Z_LOW);
    CPoint pntHigh;
    pntHigh.push_back(X_HIGH);
    pntHigh.push_back(Y_HIGH);
-   //pntHigh.push_back(Z_HIGH);
-   int iPunctaCount = int(4.*LENGTH_SCALE*LENGTH_SCALE/(BRANCH_LENGTH*PUNCTA_RANGE)*PUNCTA_PER_BRANCH+0.5);
-   //int iPunctaCount = int(4.*(Z_HIGH-Z_LOW)*LENGTH_SCALE*LENGTH_SCALE/(acos(-1.)*BRANCH_LENGTH*PUNCTA_RANGE*PUNCTA_RANGE)*PUNCTA_PER_BRANCH+0.5);
+   pntHigh.push_back(Z_HIGH);
+   //int iPunctaCount = int(4.*LENGTH_SCALE*LENGTH_SCALE/(BRANCH_LENGTH*PUNCTA_RANGE)*PUNCTA_PER_BRANCH+0.5);
+   int iPunctaCount = int(4.*(Z_HIGH-Z_LOW)*LENGTH_SCALE*LENGTH_SCALE/(acos(-1.)*BRANCH_LENGTH*PUNCTA_RANGE*PUNCTA_RANGE)*PUNCTA_PER_BRANCH+0.5);
    cerr << "   Placing " << iPunctaCount << " puncta ... " << flush;
    CBrain B1(NUM_ARBORS, iPunctaCount, pntLow, pntHigh, STEP_FORWARD_PROB, rand3);
    cerr << "done\n" << flush;
@@ -89,7 +90,8 @@ int main(int argc, char* argv[]) {
    cerr << "Trimming danglers ... " << flush;
    B1.Trim(PUNCTA_RANGE, REQUIRED_STABILIZERS);
    cerr << "done\n" << flush;
-   B1.DumpSWC();
+   //B1.DumpSWC();
+   B1.DumpSegments(cout, 0, "x1 y1 z1 x2 y2 z2 arbor depth\n");
 
    //dump the puncta for testing
    ofstream ofPuncta("puncta.txt");

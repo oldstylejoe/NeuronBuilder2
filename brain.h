@@ -315,7 +315,8 @@ public:
    }
 
    //Dump the segments.
-   void DumpSegments(ostream& inOut, int iID = 0) const {
+   void DumpSegments(ostream& inOut, int iID = 0, const string& header = "") const {
+      inOut << header;
       int i;
       vector<CArbor>::const_iterator iterA = m_vecArbors.begin();
       vector<CArbor>::const_iterator iterA_end = m_vecArbors.end();
@@ -428,24 +429,13 @@ private:
    //The type T must have operator() overloaded to return a number between [0,1).
    template <class T>
    void BuildRandomPuncta(T& inRand) {
-       double minRadius;
-       if(m_pntLow.GetDimension() > 0) {
-           minRadius = fabs(m_pntLow[0]);
-           for(int k = 0; k < m_pntLow.GetDimension(); ++k) {
-               minRadius = min(minRadius, fabs(m_pntLow[k]));
-               minRadius = min(minRadius, fabs(m_pntHigh[k]));
-           }
-       }
-       const double minRadius2 = minRadius*minRadius;
       vector<CPuncta> vecPuncta;
+      CPuncta pcInsert;
       for(int i = 0; i < m_iNumberPuncta; ++i) {
-         CPuncta pcInsert;
-         do {
-             pcInsert.clear();
-             for(int j = 0; j < m_pntLow.GetDimension(); ++j) {
-                 pcInsert.push_back(m_pntLow[j] + (m_pntHigh[j]-m_pntLow[j])*inRand());
-             }
-         } while (pcInsert.LengthSquared() > minRadius2);
+         pcInsert.clear();
+         for(int j = 0; j < m_pntLow.GetDimension(); ++j) {
+             pcInsert.push_back(m_pntLow[j] + (m_pntHigh[j]-m_pntLow[j])*inRand());
+         }
          vecPuncta.push_back(pcInsert);
       }
       m_kdPuncta.Clear();
